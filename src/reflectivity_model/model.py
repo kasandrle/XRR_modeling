@@ -376,19 +376,60 @@ class ReflectivityModel:
             df.to_csv(save_path, index=False)
         return df
 
-    def get_global_param_dataframe(self, x_global, global_keys, save_path=None):
+    def get_global_param_dataframe(self, x_global, save_path=None):
         records = []
-        for i, key in enumerate(global_keys):
+        global_index = 0  # index into x_global
+
+        for key, spec in self.global_params.items():
+            print(spec)
+            if spec.get('fit', False):
+                value = x_global[global_index]
+                global_index += 1
+            else:
+                value = spec['value']
+
             records.append({
                 'param_name': key,
-                'value': x_global[i]
+                'value': value,
+                'fit': spec.get('fit', False)
             })
+
+        for layer_spec in self.layers:
+            lname = layer_spec.name
+
+            # Thickness (only if not fitted)
+            if 'thickness' in layer_spec.params:
+                thick_spec = layer_spec.params['thickness']
+                if not thick_spec.get('fit', False):  # Only include if fit is False
+                    value = thick_spec.get('value', '—')
+                    records.append({
+                        'param_name': f'thickness_{lname}',
+                        'value': value,
+                        'fit': False,
+                    })
+
+            # Roughness (only if not fitted)
+            if 'roughness' in layer_spec.params:
+                rough_spec = layer_spec.params['roughness']
+                if not rough_spec.get('fit', False):  # Only include if fit is False
+                    value = rough_spec.get('value', '—')
+                    records.append({
+                        'param_name': f'roughness_{lname}',
+                        'value': value,
+                        'fit': False,
+                    })
+
+
+
         df = pd.DataFrame(records)
+
         if save_path:
             df.to_csv(save_path, index=False)
+
         return df
 
-    def save_all_fit_outputs(self, combined_df, R_E, nk_E, x_global, global_keys, folder_path="fit_outputs", sample_name="sample"):
+
+    def save_all_fit_outputs(self, combined_df, R_E, nk_E, x_global, folder_path="fit_outputs", sample_name="sample"):
         """
         Saves reflectivity, nk (long and wide), and global parameters to CSV files.
         Filenames include sample_name and timestamp.
@@ -414,7 +455,7 @@ class ReflectivityModel:
         df_nk_wide.to_csv(fname("nk_wide"), index=False)
 
         # global parameters
-        df_global = self.get_global_param_dataframe(x_global, global_keys)
+        df_global = self.get_global_param_dataframe(x_global)
         df_global.to_csv(fname("global_params"), index=False)
 
         print(f"✅ Fit outputs saved to '{folder_path}' with sample '{sample_name}' and timestamp {timestamp}")
