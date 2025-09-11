@@ -4,6 +4,7 @@
 ## Get latest from https://github.com/github/gitignore/blob/main/VisualStudio.gitignore
 
 fit_outputs/
+save_models/
 
 # User-specific files
 *.rsuser

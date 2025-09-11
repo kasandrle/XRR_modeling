@@ -1,0 +1,30 @@
+{
+  "energy_pol_uni": [
+    "250.0_s",
+    "275.0_s",
+    "300.0_s"
+  ],
+  "layers": [
+    {
+      "name": "resist_1",
+      "is_substrate": false,
+      "params": {
+        "thickness": {
+          "fit": true,
+          "x0": 10,
+          "bounds": [
+            5,
+            15
+          ]
+        },
+        "roughness": {
+          "fit": true,
+          "x0": 0.009,
+          "bounds": [
+            0,
+            1
+          ]
+        },
+        "n": {
+          "fit": true,
+          "x0": 

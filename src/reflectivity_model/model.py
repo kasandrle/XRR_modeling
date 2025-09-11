@@ -327,31 +327,67 @@ class ReflectivityModel:
 
     def get_nk_long_dataframe(self, nk_E, save_path=None):
         records = []
+
         for e_idx, E_pol in enumerate(self.energy_pol_uni):
             E = self.energy_index_map[E_pol]['energy']
             pol = self.energy_index_map[E_pol]['pol']
-            energy_params = [p for p in self.domain_E_init if f'_{E_pol}' in p['name']]
             nk_vals = nk_E[e_idx]
+
+            # Track fitted values
+            energy_params = [p for p in self.domain_E_init if f'_{E_pol}' in p['name']]
             layer_nk = {}
+
             for i, param in enumerate(energy_params):
                 name = param['name']
                 if 'n_' in name:
-                    lname = name.split('n_')[1]#.rsplit('_', 1)[0]
+                    lname = name.split('n_')[1]
                     layer_nk.setdefault(lname, {})['n'] = nk_vals[i]
                 elif 'k_' in name:
-                    lname = name.split('k_')[1]#.rsplit('_', 1)[0]
+                    lname = name.split('k_')[1]
                     layer_nk.setdefault(lname, {})['k'] = nk_vals[i]
+
+            # Add fitted values — guaranteed to be present
             for lname, nk in layer_nk.items():
+                n_val = nk.get('n')
+                k_val = nk.get('k')
+
+                if n_val is None or k_val is None:
+                    raise ValueError(f"Missing fitted n or k for layer '{lname}' at energy '{E_pol}'")
+
                 records.append({
                     'energy': E,
-                    'pol':pol,
+                    'pol': pol,
                     'layer': lname,
-                    'n': nk.get('n', np.nan),
-                    'k': nk.get('k', np.nan)
+                    'n': n_val,
+                    'k': k_val,
+                    'fit': True
                 })
+
+            # Add fixed values — only if not already added
+            for layer_spec in self.layers:
+                lname = layer_spec.name
+                if lname in layer_nk:
+                    continue  # already added as fitted
+
+                # Only add if n/k are fixed
+                n_val = layer_spec.params['n']['value'][e_idx] if 'n' in layer_spec.params and not layer_spec.params['n'].get('fit', False) else None
+                k_val = layer_spec.params['k']['value'][e_idx] if 'k' in layer_spec.params and not layer_spec.params['k'].get('fit', False) else None
+
+                if n_val is not None or k_val is not None:
+                    records.append({
+                        'energy': E,
+                        'pol': pol,
+                        'layer': lname,
+                        'n': n_val if n_val is not None else '—',
+                        'k': k_val if k_val is not None else '—',
+                        'fit': False
+                    })
+
         df = pd.DataFrame(records)
+
         if save_path:
             df.to_csv(save_path, index=False)
+
         return df
 
     def get_nk_wide_dataframe(self, nk_E, save_path=None):
@@ -381,7 +417,6 @@ class ReflectivityModel:
         global_index = 0  # index into x_global
 
         for key, spec in self.global_params.items():
-            print(spec)
             if spec.get('fit', False):
                 value = x_global[global_index]
                 global_index += 1
@@ -451,8 +486,8 @@ class ReflectivityModel:
         df_nk_long.to_csv(fname("nk_long"), index=False)
 
         # nk wide format
-        df_nk_wide = self.get_nk_wide_dataframe(nk_E)
-        df_nk_wide.to_csv(fname("nk_wide"), index=False)
+        #df_nk_wide = self.get_nk_wide_dataframe(nk_E)
+        #df_nk_wide.to_csv(fname("nk_wide"), index=False)
 
         # global parameters
         df_global = self.get_global_param_dataframe(x_global)
