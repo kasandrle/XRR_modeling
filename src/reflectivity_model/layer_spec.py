@@ -55,7 +55,7 @@ class LayerSpec:
     def fixed_thickness(self, value):
         if self.is_substrate:
             raise ValueError(f"Layer '{self.name}' is marked as substrate and cannot have thickness.")
-        self.params['thickness'] = {'fit': False, 'value': value}
+        self.params['thickness'] = {'fit': False, 'x0': value}
         return self
 
     def fit_roughness(self, x0, bounds=None, delta=None):
@@ -68,7 +68,7 @@ class LayerSpec:
 
 
     def fixed_roughness(self, value):
-        self.params['roughness'] = {'fit': False, 'value': value}
+        self.params['roughness'] = {'fit': False, 'x0': value}
         return self
     
     def fit_nk_from_material(self, material, energy_pol_uni, bounds_n=None, bounds_k=None,
@@ -119,8 +119,8 @@ class LayerSpec:
 
     def fixed_nk(self, n_array, k_array):
         self._nk_set = True
-        self.params['n'] = {'fit': False, 'value': n_array}
-        self.params['k'] = {'fit': False, 'value': k_array}
+        self.params['n'] = {'fit': False, 'x0': n_array}
+        self.params['k'] = {'fit': False, 'x0': k_array}
         return self
 
     def validate(self, energy_count):

@@ -2,7 +2,8 @@ import numpy as np
 import pandas as pd
 import os
 from datetime import datetime
-from .utils import fmt,fmt_bounds
+from .utils import fmt,fmt_bounds, safe_serialize
+from .layer_spec import LayerSpec
 
 class ReflectivityModel:
     """
@@ -148,10 +149,7 @@ class ReflectivityModel:
 
     def _build_global_keys(self):
         for param, spec in self.global_params.items():
-            if spec.get('fit'):
-                self.keys[param] = spec['x0']
-            else:
-                self.keys[param] = spec['value']
+            self.keys[param] = spec['x0']
         self.keys['x0'] = self.x0_dict
         self.keys['E_pol_uni'] = self.energy_pol_uni
 
@@ -162,10 +160,7 @@ class ReflectivityModel:
 
         # Global parameters
         for key, spec in self.global_params.items():
-            if spec.get('fit'):
-                self.keys[key] = spec['x0']
-            else:
-                self.keys[key] = spec['value']
+            self.keys[key] = spec['x0']
 
         # Layer-level global parameters (thickness, roughness)
         for layer in self.layers:
@@ -196,25 +191,25 @@ class ReflectivityModel:
                 if layer_spec.params['thickness']['fit']:
                     layer.append(self.keys[f'thickness_{lname}'])
                 else:
-                    layer.append(layer_spec.params['thickness']['value'])
+                    layer.append(layer_spec.params['thickness']['x0'])
 
             # Roughness
             if 'roughness' in layer_spec.params:
                 if layer_spec.params['roughness']['fit']:
                     rough.append(self.keys[f'rough_{lname}'])
                 else:
-                    rough.append(layer_spec.params['roughness']['value'])
+                    rough.append(layer_spec.params['roughness']['x0'])
 
             # Optical constants
             if layer_spec.params['n']['fit']:
                 n_real = self.keys[f'n_{lname}_{E}']
             else:
-                n_real = layer_spec.params['n']['value'][i]
+                n_real = layer_spec.params['n']['x0'][i]
 
             if layer_spec.params['k']['fit']:
                 n_imag = self.keys[f'k_{lname}_{E}']
             else:
-                n_imag = layer_spec.params['k']['value'][i]
+                n_imag = layer_spec.params['k']['x0'][i]
 
 
             n_stack.append(1 - n_real + n_imag * 1j)
@@ -236,7 +231,7 @@ class ReflectivityModel:
                     thickness = self.keys[f'thickness_{lname}']
                     bounds_thick = layer_spec.params['thickness']['bounds']
                 else:
-                    thickness = layer_spec.params['thickness']['value']
+                    thickness = layer_spec.params['thickness']['x0']
                     bounds_thick = '—'
             else:
                 thickness = '—'
@@ -248,7 +243,7 @@ class ReflectivityModel:
                     roughness = self.keys[f'rough_{lname}']
                     bounds_rough = layer_spec.params['roughness']['bounds']
                 else:
-                    roughness = layer_spec.params['roughness']['value']
+                    roughness = layer_spec.params['roughness']['x0']
                     bounds_rough = '—'
             else:
                 roughness = '—'
@@ -259,14 +254,14 @@ class ReflectivityModel:
                 n_val = self.keys[f'n_{lname}_{E_pol}']
                 bounds_n = layer_spec.params['n']['bounds'][i]
             else:
-                n_val = layer_spec.params['n']['value'][i]
+                n_val = layer_spec.params['n']['x0'][i]
                 bounds_n = '—'
 
             if layer_spec.params['k']['fit']:
                 k_val = self.keys[f'k_{lname}_{E_pol}']
                 bounds_k = layer_spec.params['k']['bounds'][i]
             else:
-                k_val = layer_spec.params['k']['value'][i]
+                k_val = layer_spec.params['k']['x0'][i]
                 bounds_k = '—'
 
             print(f"🔹 {lname:<14} | {fmt(thickness):>8} : {fmt_bounds(bounds_thick):>17} | {fmt(roughness):>8} : {fmt_bounds(bounds_rough):>17} | {fmt(n_val, 4):>8} : {fmt_bounds(bounds_n, 4):>17} | {fmt(k_val, 4):>8} : {fmt_bounds(bounds_k, 4):>17}")
@@ -370,8 +365,8 @@ class ReflectivityModel:
                     continue  # already added as fitted
 
                 # Only add if n/k are fixed
-                n_val = layer_spec.params['n']['value'][e_idx] if 'n' in layer_spec.params and not layer_spec.params['n'].get('fit', False) else None
-                k_val = layer_spec.params['k']['value'][e_idx] if 'k' in layer_spec.params and not layer_spec.params['k'].get('fit', False) else None
+                n_val = layer_spec.params['n']['x0'][e_idx] if 'n' in layer_spec.params and not layer_spec.params['n'].get('fit', False) else None
+                k_val = layer_spec.params['k']['x0'][e_idx] if 'k' in layer_spec.params and not layer_spec.params['k'].get('fit', False) else None
 
                 if n_val is not None or k_val is not None:
                     records.append({
@@ -421,7 +416,7 @@ class ReflectivityModel:
                 value = x_global[global_index]
                 global_index += 1
             else:
-                value = spec['value']
+                value = spec['x0']
 
             records.append({
                 'param_name': key,
@@ -436,7 +431,7 @@ class ReflectivityModel:
             if 'thickness' in layer_spec.params:
                 thick_spec = layer_spec.params['thickness']
                 if not thick_spec.get('fit', False):  # Only include if fit is False
-                    value = thick_spec.get('value', '—')
+                    value = thick_spec.get('x0', '—')
                     records.append({
                         'param_name': f'thickness_{lname}',
                         'value': value,
@@ -447,7 +442,7 @@ class ReflectivityModel:
             if 'roughness' in layer_spec.params:
                 rough_spec = layer_spec.params['roughness']
                 if not rough_spec.get('fit', False):  # Only include if fit is False
-                    value = rough_spec.get('value', '—')
+                    value = rough_spec.get('x0', '—')
                     records.append({
                         'param_name': f'roughness_{lname}',
                         'value': value,
@@ -494,3 +489,160 @@ class ReflectivityModel:
         df_global.to_csv(fname("global_params"), index=False)
 
         print(f"✅ Fit outputs saved to '{folder_path}' with sample '{sample_name}' and timestamp {timestamp}")
+
+    #________________json files
+    @classmethod
+    def from_config(cls, config):
+            energy_pol_uni = config['energy_pol_uni']
+            global_params = config.get('global_params', {})
+            fit_strategy = config.get('fit_strategy', 'per_energy')
+            sigma_mode = config.get('sigma_mode', 'model')
+
+            layers = []
+            for layer_cfg in config['layers']:
+                lname = layer_cfg['name']
+                layer = LayerSpec(lname, is_substrate=layer_cfg.get('is_substrate', False))
+
+                # Thickness
+                if 'fit_thickness' in layer_cfg:
+                    t = layer_cfg['fit_thickness']
+                    layer = layer.fit_thickness(t['x0'], bounds=t.get('bounds'))
+                elif 'fixed_thickness' in layer_cfg:
+                    layer = layer.fixed_thickness(layer_cfg['fixed_thickness'])
+
+                # Roughness
+                if 'fit_roughness' in layer_cfg:
+                    r = layer_cfg['fit_roughness']
+                    layer = layer.fit_roughness(r['x0'], bounds=r.get('bounds'))
+                elif 'fixed_roughness' in layer_cfg:
+                    layer = layer.fixed_roughness(layer_cfg['fixed_roughness'])
+
+                # Optical constants
+                if 'fit_nk_array' in layer_cfg:
+                    nk = layer_cfg['fit_nk_array']
+                    layer = layer.fit_nk_array(
+                        nk['n_array'], nk['k_array'],
+                        bounds_n=nk.get('bounds_n'),
+                        bounds_k=nk.get('bounds_k')
+                    )
+                elif 'fixed_nk' in layer_cfg:
+                    nk = layer_cfg['fixed_nk']
+                    layer = layer.fixed_nk(
+                        nk['n_array'], nk['k_array']
+                    )
+
+                layers.append(layer)
+
+            return cls(
+                energy_pol_uni=energy_pol_uni,
+                layers=layers,
+                global_params=global_params,
+                fit_strategy=fit_strategy,
+                sigma_mode=sigma_mode
+            )
+    
+    def to_config(self,fit_para=None):
+        config = {
+            "energy_pol_uni": list(self.energy_pol_uni),
+            "global_params": {
+                key: spec
+                for key, spec in self.global_params.items()
+                if not key.lower().startswith("thickness") and not key.lower().startswith("rough")
+            },
+            "fit_strategy": self.fit_strategy,
+            "sigma_mode": self.sigma_mode,
+            "layers": []
+        }
+
+        if fit_para is not None:
+            for key, spec in config['global_params'].items():
+
+                # If fitted value is available, update x0
+                if key in fit_para:
+                    config['global_params'][key] = {
+                        **spec,
+                        "x0": float(fit_para[key])  # Ensure JSON-serializable
+                    }
+                else:
+                    config['global_params'][key] = spec
+
+        for layer in self.layers:
+            layer_cfg = {
+                "name": layer.name,
+                "is_substrate": layer.is_substrate
+            }
+
+            # Thickness
+            if "thickness" in layer.params:
+                t = layer.params["thickness"]
+                fit_key = f"thickness_{layer.name}"
+                is_fitted = t.get("fit", False)
+
+                if is_fitted:
+                    x0_val = (
+                        float(fit_para[fit_key])
+                        if fit_para is not None and fit_key in fit_para
+                        else t["x0"]
+                    )
+                    layer_cfg["fit_thickness"] = {
+                        "x0": x0_val,
+                        "delta": t.get("delta"),
+                        "bounds": t.get("bounds")
+                    }
+                else:
+                    layer_cfg["fixed_thickness"] = t["x0"]
+
+
+            # Roughness
+            if "roughness" in layer.params:
+                r = layer.params["roughness"]
+                fit_key = f"rough_{layer.name}"
+                is_fitted = r.get("fit", False)
+
+                if is_fitted:
+                    x0_val = (
+                        float(fit_para[fit_key])
+                        if fit_para is not None and fit_key in fit_para
+                        else r["x0"]
+                    )
+                    layer_cfg["fit_roughness"] = {
+                        "x0": x0_val,
+                        "delta": r.get("delta"),
+                        "bounds": r.get("bounds")
+                    }
+                else:
+                    layer_cfg["fixed_roughness"] = r["x0"]
+
+            # Optical constants
+            if "n" in layer.params and "k" in layer.params:
+                n_spec = layer.params["n"]
+                k_spec = layer.params["k"]
+                is_fitted = n_spec.get("fit", False) or k_spec.get("fit", False)
+                fit_key = layer.name
+
+            if is_fitted:
+                nk_data = fit_para.get(fit_key) if fit_para is not None else None
+
+                layer_cfg["fit_nk_array"] = {
+                    "n_array": nk_data["n_array"] if nk_data else n_spec["x0"],
+                    "k_array": nk_data["k_array"] if nk_data else k_spec["x0"],
+                    "bounds_n": (
+                        n_spec["bounds"][0] if isinstance(n_spec.get("bounds"), (list, tuple, np.ndarray))
+                        else n_spec.get("bounds")
+                    ),
+                    "bounds_k": (
+                        k_spec["bounds"][0] if isinstance(k_spec.get("bounds"), (list, tuple, np.ndarray))
+                        else k_spec.get("bounds")
+                    )
+                }
+            else:
+                layer_cfg["fixed_nk"] = {
+                    "n_array": n_spec["x0"],
+                    "k_array": k_spec["x0"]
+                }
+
+
+            config["layers"].append(layer_cfg)
+            config_safe = safe_serialize(config)
+
+        return config_safe

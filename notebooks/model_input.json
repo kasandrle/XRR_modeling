@@ -1,0 +1,53 @@
+{
+    "energy_pol_uni": ["250.0_p", "250.0_s", "275.0_p", "275.0_s", "300.0_p", "300.0_s"],
+    "layers": [
+      {
+        "name": "resist_1",
+        "fit_thickness": { "x0": 10, "delta": 5 },
+        "fit_roughness": { "x0": 0.009, "bounds": [0, 1] },
+        "fit_nk_array": {
+          "n_array": [1.5, 1.52, 1.55, 1.57, 1.6, 1.62],
+          "k_array": [0.01, 0.012, 0.015, 0.018, 0.02, 0.025],
+          "delta_n": 0.1,
+          "bounds_k": [0, 0.1]
+        }
+      },
+      {
+        "name": "resist_2",
+        "fit_thickness": { "x0": 50, "bounds": [45, 55] },
+        "fit_roughness": { "x0": 3, "bounds": [1, 6] },
+        "fit_nk_from_material": {
+          "material": "C8H6O",
+          "density": 2.5,
+          "bounds_n": [-0.05, 0.05],
+          "bounds_k": [0, 0.1]
+        }
+      },
+      {
+        "name": "oxide",
+        "fixed_thickness": 1.1,
+        "fixed_roughness": 1.0,
+        "fixed_nk_from_material": {
+          "material": "SiO2",
+          "density": 2.09
+        }
+      },
+      {
+        "name": "substrate",
+        "is_substrate": true,
+        "fixed_roughness": 1.0,
+        "fixed_nk_from_material": {
+          "material": "Si",
+          "density": 2.33
+        }
+      }
+    ],
+    "global_params": {
+      "aoi_offset": { "fit": true, "x0": 0.0, "bounds": [-1, 1] },
+      "darkcurrent": { "fit": false, "value": 0.0 },
+      "a": { "fit": false, "value": 0.045 },
+      "b": { "fit": false, "value": 2.5e-5 }
+    },
+    "fit_strategy": "per_energy",
+    "sigma_mode": "model"
+  }

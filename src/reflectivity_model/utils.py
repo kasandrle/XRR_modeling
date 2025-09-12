@@ -1,4 +1,5 @@
 import scipy.constants as const
+import numpy as np
 
 # Precompute hc in nm·eV
 hc = const.h * const.c / const.e * 1e9  # Planck × speed of light / charge × 1e9
@@ -22,3 +23,28 @@ def fmt_bounds(bounds, precision=3):
     return str(bounds)
 def fmt(val, precision=3):
     return f"{val:.{precision}f}" if isinstance(val, (int, float)) else str(val)
+
+def safe_serialize(obj):
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, dict):
+        return {k: safe_serialize(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [safe_serialize(v) for v in obj]
+    else:
+        return obj
+    
+def extract_nk_arrays(nk_E, energy_pol_uni, fitted_nk_layers):
+    nk_dict = {lname: {"n_array": [], "k_array": []} for lname in fitted_nk_layers}
+
+    for e_idx in range(len(energy_pol_uni)):
+        nk_vals = nk_E[e_idx]
+
+        for i, lname in enumerate(fitted_nk_layers):
+            n_val = nk_vals[2 * i]
+            k_val = nk_vals[2 * i + 1]
+
+            nk_dict[lname]["n_array"].append(n_val)
+            nk_dict[lname]["k_array"].append(k_val)
+
+    return nk_dict
