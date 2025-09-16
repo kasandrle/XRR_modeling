@@ -2,7 +2,9 @@ from . import xray_compounds as xc
 import numpy as np
 import pint
 unit = pint.UnitRegistry()
-from .utils import extend_bounds
+import ast
+import pandas as pd
+from .utils import extend_bounds,load_nk_from_file
 
 
 class LayerSpec:
@@ -130,3 +132,101 @@ class LayerSpec:
             raise ValueError(f"Layer '{self.name}' has mismatched n array length.")
         if self.params.get('k', {}).get('fit') and len(self.params['k']['x0']) != energy_count:
             raise ValueError(f"Layer '{self.name}' has mismatched k array length.")
+
+    def describe(self):
+        lines = [f"Layer: {self.name}"]
+
+        if getattr(self, "is_substrate", False):
+            lines.append("Declared as substrate (no thickness fitting)")
+        else:
+            if "thickness" in self.params:
+                mode = "fit" if self.params["thickness"].get("fit") else "fixed"
+                lines.append(f"Thickness: {mode} → {self.params['thickness']}")
+
+        if "roughness" in self.params:
+            mode = "fit" if self.params["roughness"].get("fit") else "fixed"
+            lines.append(f"Roughness: {mode} → {self.params['roughness']}")
+            # Optical constants
+        if "n" in self.params:
+            mode = "fit" if self.params["n"].get("fit") else "fixed"
+            lines.append(f"delta: {mode} → {self.params['n']}")
+        if "k" in self.params:
+            mode = "fit" if self.params["k"].get("fit") else "fixed"
+            lines.append(f"beta: {mode} → {self.params['k']}")
+
+        return "\n".join(lines)
+
+
+    @classmethod
+    def from_row(cls, row, energy_pol_uni):
+        def parse_bounds_or_delta(value):
+            if pd.isna(value):
+                return None, None
+            if isinstance(value, str):
+                value = ast.literal_eval(value)
+            if isinstance(value, (tuple, list)) and len(value) == 2:
+                return 'bounds', tuple(value)
+            elif isinstance(value, (int, float)):
+                return 'delta', value
+            return None, None
+
+        layer = cls(row['name'])
+
+        # ─── Substrate ────────────────────────────────────────────────────────
+        thickness = row.get('thickness')
+        if pd.isna(thickness):
+            layer.is_substrate = True
+        else:   
+            # ─── Thickness ────────────────────────────────────────────────────────
+            fit_thickness_type, fit_thickness_val = parse_bounds_or_delta(row.get('fit_thickness'))
+            if fit_thickness_type == 'delta':
+                layer = layer.fit_thickness(thickness, delta=fit_thickness_val)
+            elif fit_thickness_type == 'bounds':
+                layer = layer.fit_thickness(thickness, bounds=fit_thickness_val)
+            else:
+                layer = layer.fixed_thickness(thickness)
+
+        # ─── Roughness ────────────────────────────────────────────────────────
+        roughness = row.get('roughness', 0.01)
+        fit_roughness_type, fit_roughness_val = parse_bounds_or_delta(row.get('fit_roughness'))
+        if fit_roughness_type == 'delta':
+            layer = layer.fit_roughness(roughness, delta=fit_roughness_val)
+        elif fit_roughness_type == 'bounds':
+            layer = layer.fit_roughness(roughness, bounds=fit_roughness_val)
+        else:
+            layer = layer.fixed_roughness(roughness)
+
+        # ─── Optical Constants (n/k) ──────────────────────────────────────────
+        fit_n_type, fit_n_val = parse_bounds_or_delta(row.get('fit_n'))
+        fit_k_type, fit_k_val = parse_bounds_or_delta(row.get('fit_k'))
+
+        nk_source = row.get('nk')
+        density = row.get('density')
+
+        if pd.isna(row.get('fit_n')) and pd.isna(row.get('fit_k')):
+            if pd.isna(density):
+                n_arr, k_arr = load_nk_from_file(nk_source, energy_pol_uni)
+                layer = layer.fixed_nk_array(n_arr, k_arr)
+            else:
+                layer = layer.fixed_nk_from_material(nk_source, energy_pol_uni, density=density)
+        else:
+            delta_n = fit_n_val if fit_n_type == 'delta' else None
+            bounds_n = fit_n_val if fit_n_type == 'bounds' else None
+            delta_k = fit_k_val if fit_k_type == 'delta' else None
+            bounds_k = fit_k_val if fit_k_type == 'bounds' else None
+
+            if pd.isna(density):
+                n_arr, k_arr = load_nk_from_file(nk_source, energy_pol_uni)
+                layer = layer.fit_nk_array(
+                    n_arr, k_arr,
+                    delta_n=delta_n, delta_k=delta_k,
+                    bounds_n=bounds_n, bounds_k=bounds_k
+                )
+            else:
+                layer = layer.fit_nk_from_material(
+                    nk_source, energy_pol_uni, density=density,
+                    delta_n=delta_n, delta_k=delta_k,
+                    bounds_n=bounds_n, bounds_k=bounds_k
+                )
+
+        return layer

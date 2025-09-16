@@ -1,5 +1,8 @@
 import scipy.constants as const
 import numpy as np
+from scipy.interpolate import interp1d
+import ast
+import pandas as pd
 
 # Precompute hc in nm·eV
 hc = const.h * const.c / const.e * 1e9  # Planck × speed of light / charge × 1e9
@@ -48,3 +51,22 @@ def extract_nk_arrays(nk_E, energy_pol_uni, fitted_nk_layers):
             nk_dict[lname]["k_array"].append(k_val)
 
     return nk_dict
+
+def load_nk_from_file(filepath,energy_pol_uni):
+    energy_uni = []
+    for label in energy_pol_uni:
+        energy_str, pol = label.split('_')
+        energy = float(energy_str)
+        energy_uni.append(energy)
+    df = pd.read_csv(filepath)
+    e_arr = np.array(df['Energy'])
+    n_arr = np.array(df['n'])
+    k_arr = np.array(df['k'])
+    n_interp = interp1d(e_arr, n_arr, fill_value="extrapolate")
+    k_interp = interp1d(e_arr, k_arr, fill_value="extrapolate")
+
+    n_array_extended = n_interp(energy_uni)
+    k_array_extended = k_interp(energy_uni)
+    return n_array_extended, k_array_extended
+
+
