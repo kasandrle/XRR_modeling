@@ -335,10 +335,10 @@ class ReflectivityModel:
             for i, param in enumerate(energy_params):
                 name = param['name']
                 if 'n_' in name:
-                    lname = name.split('n_')[1]
+                    lname = name.split('n_')[1].split('_')[0]
                     layer_nk.setdefault(lname, {})['n'] = nk_vals[i]
                 elif 'k_' in name:
-                    lname = name.split('k_')[1]
+                    lname = name.split('k_')[1].split('_')[0]
                     layer_nk.setdefault(lname, {})['k'] = nk_vals[i]
 
             # Add fitted values — guaranteed to be present
@@ -348,15 +348,16 @@ class ReflectivityModel:
 
                 if n_val is None or k_val is None:
                     raise ValueError(f"Missing fitted n or k for layer '{lname}' at energy '{E_pol}'")
-
-                records.append({
-                    'energy': E,
+                
+                temp = {
+                    'Energy': E,
                     'pol': pol,
                     'layer': lname,
                     'n': n_val,
                     'k': k_val,
                     'fit': True
-                })
+                }
+                records.append(temp)
 
             # Add fixed values — only if not already added
             for layer_spec in self.layers:
@@ -370,7 +371,7 @@ class ReflectivityModel:
 
                 if n_val is not None or k_val is not None:
                     records.append({
-                        'energy': E,
+                        'Energy': E,
                         'pol': pol,
                         'layer': lname,
                         'n': n_val if n_val is not None else '—',
@@ -384,6 +385,7 @@ class ReflectivityModel:
             df.to_csv(save_path, index=False)
 
         return df
+
 
     def get_nk_wide_dataframe(self, nk_E, save_path=None):
         records = []
@@ -477,8 +479,16 @@ class ReflectivityModel:
         df_reflectivity.to_csv(fname("reflectivity"), index=False)
 
         # nk long format
-        df_nk_long = self.get_nk_long_dataframe(nk_E)
+        df_nk_long = self.get_nk_long_dataframe(nk_E,save_path=fname("nk_long"))
         df_nk_long.to_csv(fname("nk_long"), index=False)
+
+        fitting_df = df_nk_long[df_nk_long['fit'] == True]
+
+        # Group by unique layer names
+        for layer_name, layer_df in fitting_df.groupby('layer'):
+            layer_df.to_csv(fname("nk"+layer_name), index=False)
+            #print(f"✅ Saved fitting data for layer '{layer_name}' to {filename}")
+
 
         # nk wide format
         #df_nk_wide = self.get_nk_wide_dataframe(nk_E)
