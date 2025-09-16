@@ -13,6 +13,9 @@ import matplotlib.pyplot as plt
 import pint
 unit = pint.UnitRegistry()
 from scipy.optimize import differential_evolution, minimize
+import argparse
+from pathlib import Path
+
 
 home = expanduser("~")
 sys.path.append(join(home,'Projects/'))
@@ -34,10 +37,30 @@ def normalize_polarization(pol_entry):
         return 0
     return 1  # default to s-pol if ambiguous
 
+def load_config(config_path):
+    with open(config_path, 'r') as f:
+        return json.load(f)
+
 # Sample and path configuration
-sample_name = 'SOG1'
-path = '/home/kas/Projects/XRR_photoresist/Underlayer/XRR/reduced/'
-input_file = pd.read_csv('../fit_input/sample1_set_up.csv')
+parser = argparse.ArgumentParser(description="Run reflectivity fit for a sample")
+parser.add_argument("--sample_name", type=str, required=True, help="Name of the sample (e.g. SOG1)")
+parser.add_argument("--path", type=str, required=True, help="Base path to data directory")
+parser.add_argument("--input_csv", type=str, required=False, help="Path to input CSV file")
+parser.add_argument("--config", type=str, required=False, help="Use a json config file")
+
+args = parser.parse_args()
+
+sample_name = args.sample_name
+path = Path(args.path)
+#input_file = pd.read_csv(args.input_csv)
+
+print(f"🧪 Running fit for sample: {sample_name}")
+print(f"📂 Data path: {path}")
+#print(f"📄 Loaded input file with {len(input_file)} rows")
+
+#sample_name = 'SOG1'
+#path = '/home/kas/Projects/XRR_photoresist/Underlayer/XRR/reduced/'
+#input_file = pd.read_csv('../fit_input/sample1_set_up.csv')
 
 # Filter relevant CSV files
 onlyfiles_keys = [
@@ -97,33 +120,42 @@ file_name = '_'.join(split_file[:3])
 # Optional: Display unique energy/polarization combinations
 print("Unique energy/polarization labels:", energy_pol_uni)
 
+if args.input_csv:
+    input_file = pd.read_csv(args.input_csv)
+    input_file_col = input_file.columns
+    layers = []
 
-input_file_col = input_file.columns
-layers = []
+    for _, row in input_file.iterrows():
+        layer_spec = LayerSpec.from_row(row, energy_pol_uni)
+        # print(layer_spec.describe())
+        layers.append(layer_spec)
 
-for _, row in input_file.iterrows():
-    layer_spec = LayerSpec.from_row(row, energy_pol_uni)
-    #print(layer_spec.describe())
-    layers.append(layer_spec)
+    model = ReflectivityModel(
+        energy_pol_uni=energy_pol_uni,
+        layers=layers,
+        global_params={
+            'aoi_offset': {'fit': True, 'x0': 0.0, 'bounds': (-1, 1)},
+            'darkcurrent': {'fit': False, 'x0': 0.0},
+            'a': {'fit': False, 'x0': 0.045},
+            'b': {'fit': False, 'x0': 2.5e-5},
+            # 'c': {'fit': False, 'value': 2.5e-5}
+        },
+        fit_strategy="per_energy",
+        sigma_mode="model",
+        # sigma_function=custom_sigma
+    )
 
-model = ReflectivityModel(
-    energy_pol_uni=energy_pol_uni,
-    layers=layers,
-    global_params={
-        'aoi_offset': {'fit': True, 'x0': 0.0, 'bounds': (-1, 1)},
-        'darkcurrent': {'fit': False, 'x0': 0.0},
-        'a': {'fit': False, 'x0': 0.045},
-        'b': {'fit': False, 'x0': 2.5e-5},
-        #'c': {'fit': False, 'value': 2.5e-5}
-    },
-    fit_strategy="per_energy",
-    sigma_mode="model",
-    #sigma_function=custom_sigma
-)
+    model.initialize_keys_from_x0()
+    model.summarize_stack(energy_pol_uni[0])
+    model.describe_sigma()
 
-model.initialize_keys_from_x0()
-model.summarize_stack(energy_pol_uni[0])
-model.describe_sigma()
+elif args.config:
+    config = load_config(args.config)
+    model = ReflectivityModel.from_config(config)
+
+else:
+    raise ValueError("You must provide either --input_csv or --config.")
+
 
 def objective_inner(x, aoi, xrr, sigma_sq, E, model, pol,E_pol, return_R=False):
     # Update model keys with current fit parameters
@@ -171,6 +203,7 @@ def objective_model_fit(x, model, combined_df, return_loglikelihood=False, retur
         nk_E, R_E, R_exp_E, chi_E = [], [], [], []
 
     # Loop over energies
+    last_successful_x = None
     for E_pol in model.energy_pol_uni:
 
         i = model.energy_index_map[E_pol]['index']
@@ -197,18 +230,42 @@ def objective_model_fit(x, model, combined_df, return_loglikelihood=False, retur
 
 
         if model.fit_strategy == "per_energy":
-            # Fit energy-dependent parameters separately
             x0 = [d['x0'] for d in model.domain_E_init if f'_{E_pol}' in d['name']]
             bounds = [d['domain'] for d in model.domain_E_init if f'_{E_pol}' in d['name']]
 
             res = minimize(
                 objective_inner, x0, bounds=bounds,
-                args=(aoi, xrr, sigma_sq, E, model,pol,E_pol), method='TNC'
+                args=(aoi, xrr, sigma_sq, E, model, pol, E_pol),
+                method='TNC'
             )
-            chi_E_val, rm = objective_inner(res.x, aoi, xrr, sigma_sq, E, model,pol,E_pol, return_R=True)
+
+            # Evaluate result
+            if res.success:
+                last_successful_x = res.x
+            else:
+                if last_successful_x is not None:
+                    res = minimize(
+                        objective_inner, last_successful_x, bounds=bounds,
+                        args=(aoi, xrr, sigma_sq, E, model, pol, E_pol),
+                        method='TNC'
+                    )
+                    if res.success:
+                        last_successful_x = res.x
+                else:
+                    x_random = [np.random.uniform(low, high) for (low, high) in bounds]
+                    res = minimize(
+                        objective_inner, x_random, bounds=bounds,
+                        args=(aoi, xrr, sigma_sq, E, model, pol, E_pol),
+                        method='TNC'
+                    )
+                    if res.success:
+                        last_successful_x = res.x
+
+            chi_E_val, rm = objective_inner(res.x, aoi, xrr, sigma_sq, E, model, pol, E_pol, return_R=True)
 
             if return_all:
                 nk_E.append(res.x)
+
 
         elif model.fit_strategy == "global":
             # Use energy-dependent parameters from x
@@ -246,12 +303,12 @@ def objective_model_fit(x, model, combined_df, return_loglikelihood=False, retur
     return chi_total
 
 x0_global, bounds_global, global_keys = model.get_global_fit_params()
-objective_model_fit(x0_global,model, combined_df)
+#objective_model_fit(x0_global,model, combined_df)
 
 x0_energy = [d['x0'] for d in model.domain_E_init]
 bounds_energy = [d['domain'] for d in model.domain_E_init]
 
-model.fit_strategy="per_energy"
+#model.fit_strategy="per_energy"
 x0 =x0_global# + x0_energy
 bounds = bounds_global #+ bounds_energy
 
