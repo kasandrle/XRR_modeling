@@ -4,7 +4,7 @@ from reflectivity_model import LayerSpec, ReflectivityModel, eVnm_converter,extr
 import reflectivity_model.utils as utils
 import reflectivity_model.xray_compounds as xc
 import json
-
+from datetime import datetime
 import numpy as np
 from os import listdir
 from os.path import isfile, join
@@ -198,7 +198,8 @@ fitted_nk = extract_nk_arrays(nk_E, model.energy_pol_uni, fitted_nk_layers)
 fit_para = {**fitted_globals, **fitted_nk}
 
 config = model.to_config(fit_para=fit_para)#,x_global = res.x[:len(global_keys)],nk_E=nk_E)
-with open(sample_name + "_reflectivity_model_config.json", "w") as f:
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+with open(f"../fit_outputs/{sample_name}_reflectivity_model_config_{timestamp}.json", "w") as f:
     json.dump(config, f, indent=2)
 
 x0_global, bounds_global, global_keys = model.get_global_fit_params()
