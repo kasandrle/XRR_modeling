@@ -69,4 +69,18 @@ def load_nk_from_file(filepath,energy_pol_uni):
     k_array_extended = k_interp(energy_uni)
     return n_array_extended, k_array_extended
 
+def normalize_polarization(pol_entry):
+    """
+    Normalize polarization input to binary:
+    - Returns 1 for s-polarization
+    - Returns 0 for p-polarization
+    - Defaults to s if unclear
+    """
+    entry = str(pol_entry).strip().lower()
+    if any(key in entry for key in ['100', 's', '1']):
+        return 1
+    elif any(key in entry for key in ['190', 'p', '0']):
+        return 0
+    return 1  # default to s-pol if ambiguous
+
 
