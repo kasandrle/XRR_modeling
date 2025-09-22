@@ -1,0 +1,15 @@
+[project]
+name = "xrrModeling"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "matplotlib>=3.10.6",
+    "matrixmethod>=0.1.1",
+    "numpy>=2.3.3",
+    "pandas>=2.3.2",
+    "periodictable>=2.0.2",
+    "pint>=0.25",
+    "scipy>=1.16.2",
+]

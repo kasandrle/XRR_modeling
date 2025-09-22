@@ -4,7 +4,7 @@ import pint
 unit = pint.UnitRegistry()
 import ast
 import pandas as pd
-from .utils import extend_bounds,load_nk_from_file
+from .utils import extend_bounds,load_nk_from_file, validate_positive
 
 
 class LayerSpec:
@@ -155,8 +155,7 @@ class LayerSpec:
             lines.append(f"beta: {mode} → {self.params['k']}")
 
         return "\n".join(lines)
-
-
+    
     @classmethod
     def from_row(cls, row, energy_pol_uni):
         def parse_bounds_or_delta(value):
@@ -174,6 +173,7 @@ class LayerSpec:
 
         # ─── Substrate ────────────────────────────────────────────────────────
         thickness = row.get('thickness')
+        validate_positive(thickness,field_name="thickness")
         if pd.isna(thickness):
             layer.is_substrate = True
         else:   
@@ -187,7 +187,8 @@ class LayerSpec:
                 layer = layer.fixed_thickness(thickness)
 
         # ─── Roughness ────────────────────────────────────────────────────────
-        roughness = row.get('roughness', 0.01)
+        roughness = row.get('roughness')
+        validate_positive(roughness,field_name="roughness")
         fit_roughness_type, fit_roughness_val = parse_bounds_or_delta(row.get('fit_roughness'))
         if fit_roughness_type == 'delta':
             layer = layer.fit_roughness(roughness, delta=fit_roughness_val)

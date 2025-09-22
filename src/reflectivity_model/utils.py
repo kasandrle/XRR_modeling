@@ -83,4 +83,10 @@ def normalize_polarization(pol_entry):
         return 0
     return 1  # default to s-pol if ambiguous
 
+def validate_positive(value, field_name="value"):
+    if value is None:
+        raise ValueError(f"{field_name} is missing.")
+    if value <= 0:
+        raise ValueError(f"{field_name} must be positive. Got {value}.")
+
 

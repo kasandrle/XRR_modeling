@@ -1,8 +1,8 @@
 import numpy as np
-import sys
-from os.path import join, expanduser
-home = expanduser("~")
-sys.path.append(join(home,'Projects/'))
+#import sys
+#from os.path import join, expanduser
+#home = expanduser("~")
+#sys.path.append(join(home,'Projects/'))
 import matrixmethod.mm_numba as mm #https://github.com/mikapfl/matrixmethod
 from scipy.optimize import minimize
 from reflectivity_model import eVnm_converter
