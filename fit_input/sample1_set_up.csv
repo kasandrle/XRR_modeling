@@ -1,4 +1,4 @@
 ﻿name,thickness,fit_thickness,roughness,fit_roughness,nk,density,fit_n,fit_k
-SOG,35,5,0.01,"(0,1)",../fit_input/sample1_nk_extended.csv,,0.01,"(0, 0.1)"
+UL,35,5,0.01,"(0,1)",../fit_input/sample1_nk_extended.csv,,"(-0.1,0.1)","(0, 0.1)"
 oxide,1.1,,0.1,,SiO2,2.09,,
 substrate,,,0.1,,Si,2.33,,

@@ -32,7 +32,7 @@ def load_config(config_path):
 
 # Sample and path configuration
 parser = argparse.ArgumentParser(description="Run reflectivity fit for a sample")
-parser.add_argument("--sample_name", type=str, required=True, help="Name of the sample (e.g. SOG1)")
+parser.add_argument("--sample_name", type=str, required=True, help="Name of the sample (e.g. UL)")
 parser.add_argument("--path", type=str, required=True, help="Base path to data directory")
 parser.add_argument("--input_csv", type=str, required=False, help="Path to input CSV file")
 parser.add_argument("--config", type=str, required=False, help="Use a json config file")
@@ -46,10 +46,6 @@ path = Path(args.path)
 print(f"🧪 Running fit for sample: {sample_name}")
 print(f"📂 Data path: {path}")
 #print(f"📄 Loaded input file with {len(input_file)} rows")
-
-#sample_name = 'SOG1'
-#path = '/home/kas/Projects/XRR_photoresist/Underlayer/XRR/reduced/'
-#input_file = pd.read_csv('../fit_input/sample1_set_up.csv')
 
 # Filter relevant CSV files
 onlyfiles_keys = [

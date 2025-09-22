@@ -5,6 +5,7 @@
 
 fit_outputs/
 save_models/
+private_notebooks/
 
 # User-specific files
 *.rsuser

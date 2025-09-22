@@ -135,7 +135,7 @@ def objective_model_fit(x, model, combined_df, return_loglikelihood=False, retur
         else:
             raise ValueError(f"Unknown fit_strategy: {model.fit_strategy}")
 
-        chi_total += chi_E_val
+        chi_total += chi_E_val#/len(xrr)
 
         if return_loglikelihood:
             loglikelihood += np.sum(np.log(1 / np.sqrt(2 * np.pi * sigma_sq)) - chi_E_val / 2)
