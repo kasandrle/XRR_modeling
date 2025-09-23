@@ -207,7 +207,7 @@ class LayerSpec:
         if pd.isna(row.get('fit_n')) and pd.isna(row.get('fit_k')):
             if pd.isna(density):
                 n_arr, k_arr = load_nk_from_file(nk_source, energy_pol_uni)
-                layer = layer.fixed_nk_array(n_arr, k_arr)
+                layer = layer.fixed_nk(n_arr, k_arr)
             else:
                 layer = layer.fixed_nk_from_material(nk_source, energy_pol_uni, density=density)
         else:
