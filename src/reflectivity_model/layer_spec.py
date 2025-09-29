@@ -35,6 +35,8 @@ class LayerSpec:
         fit_nk_array(n_array, k_array, bounds_n, bounds_k): Fit n/k from user-defined arrays.
         fixed_nk(n_array, k_array): Fix n/k from user-defined arrays.
         validate(energy_count): Ensure n/k arrays are properly defined and match energy resolution.
+        describe(): print out description of layer
+        from_row(row,energy_pol_uni): takes one row of an input csv files and set_upt the layer acordingly (see README for detailed description of input file)
     """
 
     def __init__(self, name, is_substrate=False):

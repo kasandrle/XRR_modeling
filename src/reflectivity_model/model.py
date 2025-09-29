@@ -14,7 +14,7 @@ class ReflectivityModel:
     global and per-energy fitting strategies, and allows flexible error modeling via sigma_mode.
 
     Attributes:
-        energy_points (list of float): Discrete energy values (e.g. in eV) used for modeling.
+        energy_pol_uni (list of tring): unique combination of  energy values (e.g. in eV) and polarization used for modeling.
         layers (list of LayerSpec): Ordered list of layer definitions, including substrate.
         global_params (dict): Dictionary of global fit parameters (e.g. thickness, roughness, offsets).
         fit_strategy (str): Either "global" or "per_energy", controlling how energy-dependent parameters are fit.
@@ -33,10 +33,16 @@ class ReflectivityModel:
         _build_global_keys(): Initializes the keys dictionary from global and energy-dependent parameters.
         _validate_sigma_model(): checks if a and b are in global parameters
         initialize_keys_from_x0(): Populates keys from initial values for fitting.
-        build_layer_arrays(E): Constructs thickness, roughness, and complex refractive index stack for a given energy.
+        build_layer_arrays(energy_pol_uni): Constructs thickness, roughness, and complex refractive index stack for a given energy. Used for the Transfer matrix method.
         describe_sigma(): Returns a human-readable description of the current sigma error model.
-        summarize_stack(E): prints out the values for one energy
+        summarize_stack(energy_pol_uni): prints out the values for one energy
         get_global_fit_params(): Returns x0, bounds, and keys for all global parameters marked for fitting.
+        get_reflectivity_dataframe(exp_refelctivty,simulated_reflectivty): saves the calcualted refeectivty and the simulated refelctivty in a dataframe
+        get_nk_long_dataframe(nk_E): save the optical constants in a long list as a dataframe
+        get_global_param_dataframe(x_global): saves global fit parameter into dataframe
+        save_all_fit_outputs(combined_df, R_E, nk_E, x_global, folder_path="fit_outputs", sample_name="sample"): Saves reflectivity, nk (long), and global parameters to CSV files. Filenames include sample_name and timestamp.
+        from_config(config): uses json file to intilaize model
+        to_config(fit_para=None): saves the model into a json file. If fit_para is provide the starting intial values are updated with fit_para
     """
 
     def __init__(self, energy_pol_uni, layers, global_params, fit_strategy="global", sigma_mode="model", sigma_column=None, sigma_function=None):
@@ -174,14 +180,12 @@ class ReflectivityModel:
             if 'roughness' in layer.params and layer.params['roughness']['fit']:
                 self.keys[f'rough_{lname}'] = layer.params['roughness']['x0']
 
-
-
-    def build_layer_arrays(self, E):
+    def build_layer_arrays(self, energy_pol_uni):
         layer = []
         rough = []
         n_stack = [1 + 0j]  # ambient
 
-        i = self.energy_index_map[E]['index']
+        i = self.energy_index_map[energy_pol_uni]['index']
 
         for layer_spec in self.layers:
             lname = layer_spec.name
@@ -202,12 +206,12 @@ class ReflectivityModel:
 
             # Optical constants
             if layer_spec.params['n']['fit']:
-                n_real = self.keys[f'n_{lname}_{E}']
+                n_real = self.keys[f'n_{lname}_{energy_pol_uni}']
             else:
                 n_real = layer_spec.params['n']['x0'][i]
 
             if layer_spec.params['k']['fit']:
-                n_imag = self.keys[f'k_{lname}_{E}']
+                n_imag = self.keys[f'k_{lname}_{energy_pol_uni}']
             else:
                 n_imag = layer_spec.params['k']['x0'][i]
 
@@ -297,15 +301,15 @@ class ReflectivityModel:
     
     #____save to dataframe_____________
 
-    def get_reflectivity_dataframe(self, combined_df, R_E, save_path=None):
+    def get_reflectivity_dataframe(self, exp_refelctivty, simulated_reflectivty, save_path=None):
         records = []
         for e_idx, E_pol in enumerate(self.energy_pol_uni):
             E = self.energy_index_map[E_pol]['energy']
             pol = self.energy_index_map[E_pol]['pol']
-            xrr_all = combined_df[combined_df['energy_pol'] == E_pol]
+            xrr_all = exp_refelctivty[exp_refelctivty['energy_pol'] == E_pol]
             aoi_deg = xrr_all['Theta'].values
             xrr = xrr_all['R'].values
-            rm = R_E[e_idx]
+            rm = simulated_reflectivty[e_idx]
             for i, theta in enumerate(aoi_deg):
                 records.append({
                     'energy': E,
@@ -461,9 +465,9 @@ class ReflectivityModel:
         return df
 
 
-    def save_all_fit_outputs(self, combined_df, R_E, nk_E, x_global, folder_path="fit_outputs", sample_name="sample"):
+    def save_all_fit_outputs(self, exp_refelctivty, simulated_reflectivty, nk_E, x_global, folder_path="fit_outputs", sample_name="sample"):
         """
-        Saves reflectivity, nk (long and wide), and global parameters to CSV files.
+        Saves reflectivity, nk (long), and global parameters to CSV files.
         Filenames include sample_name and timestamp.
         """
 
@@ -475,7 +479,7 @@ class ReflectivityModel:
             return os.path.join(folder_path, f"{sample_name}_{label}_{timestamp}.csv")
 
         # Reflectivity
-        df_reflectivity = self.get_reflectivity_dataframe(combined_df, R_E)
+        df_reflectivity = self.get_reflectivity_dataframe(exp_refelctivty, simulated_reflectivty)
         df_reflectivity.to_csv(fname("reflectivity"), index=False)
 
         # nk long format
