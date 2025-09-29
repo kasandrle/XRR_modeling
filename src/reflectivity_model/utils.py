@@ -60,8 +60,8 @@ def load_nk_from_file(filepath,energy_pol_uni):
         energy_uni.append(energy)
     df = pd.read_csv(filepath)
     e_arr = np.array(df['Energy'])
-    n_arr = np.array(df['n'])
-    k_arr = np.array(df['k'])
+    n_arr = np.array(df['delta'])
+    k_arr = np.array(df['beta'])
     n_interp = interp1d(e_arr, n_arr, fill_value="extrapolate")
     k_interp = interp1d(e_arr, k_arr, fill_value="extrapolate")
 

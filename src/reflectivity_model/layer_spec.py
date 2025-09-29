@@ -200,13 +200,13 @@ class LayerSpec:
             layer = layer.fixed_roughness(roughness)
 
         # ─── Optical Constants (n/k) ──────────────────────────────────────────
-        fit_n_type, fit_n_val = parse_bounds_or_delta(row.get('fit_n'))
-        fit_k_type, fit_k_val = parse_bounds_or_delta(row.get('fit_k'))
+        fit_n_type, fit_n_val = parse_bounds_or_delta(row.get('fit_delta'))
+        fit_k_type, fit_k_val = parse_bounds_or_delta(row.get('fit_beta'))
 
-        nk_source = row.get('nk')
+        nk_source = row.get('deltabeta')
         density = row.get('density')
 
-        if pd.isna(row.get('fit_n')) and pd.isna(row.get('fit_k')):
+        if pd.isna(row.get('fit_delta')) and pd.isna(row.get('fit_beta')):
             if pd.isna(density):
                 n_arr, k_arr = load_nk_from_file(nk_source, energy_pol_uni)
                 layer = layer.fixed_nk(n_arr, k_arr)

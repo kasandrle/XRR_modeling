@@ -14,6 +14,11 @@ XRR_modeling offers:
 - Customizable error modeling via `sigma_mode`  
 - Export pipelines with timestamped, sample-named outputs for traceable documentation
 
+>  **Optical Constants Convention**  
+> In this fitting framework, the complex refractive index is defined as:  
+> `n = 1 - δ + i·β`  
+> where `δ` (delta) and `β` (beta) are the dispersive and absorptive components, respectively.  
+
 ---
 
 ## Core Components
@@ -109,6 +114,61 @@ The class supports both fixed values and parameter fitting, with bounds and init
 - `from_row(row, energy_pol_uni)` — Configure layer from a row in an input CSV file (see README for format)
 
 ---
+
+## Input csv file
+
+See [`fit_input/sample1_et_up.csv`](fit_input/sample1_et_up.csv) for an example.
+
+---
+
+### Required Columns
+
+The input CSV must contain the following columns:
+name,thickness,fit_thickness,roughness,fit_roughness,deltabeta,density,fit_delta,fit_beta
+
+Each row represents a single layer in the stack. **Layer order matters**:
+
+- The **top layer** is closest to the surface.
+- The **last layer** is the substrate, and its `thickness` must be left empty.
+
+---
+
+### Parameter Guidelines
+
+- **`thickness` and `roughness`**  
+  - If the corresponding `fit_*` field is empty → treated as fixed values.  
+  - If fitting is enabled → used as starting parameters.
+
+- **Valid entries for `fit_thickness`, `fit_roughness`, `fit_delta`, or `fit_beta`**  
+  - A single float (± around the starting value)  
+  - A pair of values in brackets `[lower_bound, upper_bound]`  
+  - Leave empty to fix the parameter during fitting
+
+---
+
+### Optical Constants (`deltabeta` Field)
+
+You can specify optical constants in one of two ways:
+
+#### Option 1: External CSV File
+
+Provide a CSV file containing optical constants for the layer with columns:
+Energy, delta, beta
+
+**Requirements:**
+- The energy range must fully cover the range of the fitted data.
+- Leave `density` empty.
+
+#### Option 2: Henke Database Reference
+
+Provide:
+- A chemical formula (e.g., `SiO2`) in the `deltabeta` field  
+- A numeric `density` value  
+
+This will use the Henke database to retrieve optical constants.
+
+---
+
 
 ## Installation
 

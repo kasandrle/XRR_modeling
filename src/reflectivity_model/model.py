@@ -351,14 +351,14 @@ class ReflectivityModel:
                 k_val = nk.get('k')
 
                 if n_val is None or k_val is None:
-                    raise ValueError(f"Missing fitted n or k for layer '{lname}' at energy '{E_pol}'")
+                    raise ValueError(f"Missing fitted delta or beta for layer '{lname}' at energy '{E_pol}'")
                 
                 temp = {
                     'Energy': E,
                     'pol': pol,
                     'layer': lname,
-                    'n': n_val,
-                    'k': k_val,
+                    'delta': n_val,
+                    'beta': k_val,
                     'fit': True
                 }
                 records.append(temp)
@@ -378,8 +378,8 @@ class ReflectivityModel:
                         'Energy': E,
                         'pol': pol,
                         'layer': lname,
-                        'n': n_val if n_val is not None else '—',
-                        'k': k_val if k_val is not None else '—',
+                        'delta': n_val if n_val is not None else '—',
+                        'beta': k_val if k_val is not None else '—',
                         'fit': False
                     })
 
