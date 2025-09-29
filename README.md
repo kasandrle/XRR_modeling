@@ -35,6 +35,9 @@ Constructs and manages a multilayer reflectivity model for energy-dependent fitt
 
 This class organizes layer specifications, global parameters, and energy-resolved domains to support inverse modeling. It supports both global and per-energy fitting strategies and allows flexible error modeling via `sigma_mode`.
 
+### `objective`
+Inlcudes some example objective funtions that can be used for scipy optimzation. Output works with the saving option of the `ReflectivityModel`
+
 ---
 
 ## Class Overview: `ReflectivityModel`
@@ -43,7 +46,7 @@ This class organizes layer specifications, global parameters, and energy-resolve
 
 - `energy_points`: List of discrete energy values (e.g., in eV)  
 - `layers`: Ordered list of `LayerSpec` objects, including substrate  
-- `global_params`: Dictionary of global fit parameters (e.g., thickness, roughness, offsets)  
+- `global_params`: Dictionary of global fit parameters (e.g. offsets)  
 - `fit_strategy`: `"global"` or `"per_energy"` — controls how energy-dependent parameters are fit  
 - `sigma_mode`: `"model"` or `"column"` — defines how error variance (σ²) is computed  
 - `sigma_column`: Column name in `combined_df` if using `"column"` mode  

@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import os
 from datetime import datetime
-from .utils import fmt,fmt_bounds, safe_serialize
+from .utils import fmt,fmt_bounds, safe_serialize, extract_nk_arrays
 from .layer_spec import LayerSpec
 
 class ReflectivityModel:
@@ -298,18 +298,53 @@ class ReflectivityModel:
 
         return x0, bounds, keys
 
-    
+    def extract_fit_parameters(self, x, nk_E):
+        """
+        Extracts fitted global parameters and energy-dependent optical constants (n, k)
+        for layers marked as fit-enabled. Returns a combined dictionary suitable for
+        serialization or reinitialization.
+
+        Args:
+            x (array of floats): results array of optimzation.
+            nk_E (dict): Dictionary of energy-resolved optical constants.
+
+        Returns:
+            dict: Combined dictionary of fitted global parameters and fitted nk arrays.
+        """
+        # Identify layers with fitted n or k
+        fitted_nk_layers = [
+            layer.name
+            for layer in self.layers
+            if (
+                ('n' in layer.params and layer.params['n'].get('fit', False)) or
+                ('k' in layer.params and layer.params['k'].get('fit', False))
+            )
+        ]
+
+        # Extract fitted global parameters
+        global_keys = list(self.global_params.keys())
+        fitted_globals = {
+            name: value
+            for name, value in zip(global_keys, x[:len(global_keys)])
+        }
+
+        # Extract fitted nk arrays
+        fitted_nk = extract_nk_arrays(nk_E, self.energy_pol_uni, fitted_nk_layers)
+
+        # Combine all fitted parameters
+        fit_para = {**fitted_globals, **fitted_nk}
+        return fit_para
     #____save to dataframe_____________
 
-    def get_reflectivity_dataframe(self, exp_refelctivty, simulated_reflectivty, save_path=None):
+    def get_reflectivity_dataframe(self, exp_reflectivity, simulated_reflectivity, save_path=None):
         records = []
         for e_idx, E_pol in enumerate(self.energy_pol_uni):
             E = self.energy_index_map[E_pol]['energy']
             pol = self.energy_index_map[E_pol]['pol']
-            xrr_all = exp_refelctivty[exp_refelctivty['energy_pol'] == E_pol]
+            xrr_all = exp_reflectivity[exp_reflectivity['energy_pol'] == E_pol]
             aoi_deg = xrr_all['Theta'].values
             xrr = xrr_all['R'].values
-            rm = simulated_reflectivty[e_idx]
+            rm = simulated_reflectivity[e_idx]
             for i, theta in enumerate(aoi_deg):
                 records.append({
                     'energy': E,
@@ -465,7 +500,7 @@ class ReflectivityModel:
         return df
 
 
-    def save_all_fit_outputs(self, exp_refelctivty, simulated_reflectivty, nk_E, x_global, folder_path="fit_outputs", sample_name="sample"):
+    def save_all_fit_outputs(self, exp_reflectivity, simulated_reflectivity, nk_E, x_global, folder_path="fit_outputs", sample_name="sample"):
         """
         Saves reflectivity, nk (long), and global parameters to CSV files.
         Filenames include sample_name and timestamp.
@@ -479,7 +514,7 @@ class ReflectivityModel:
             return os.path.join(folder_path, f"{sample_name}_{label}_{timestamp}.csv")
 
         # Reflectivity
-        df_reflectivity = self.get_reflectivity_dataframe(exp_refelctivty, simulated_reflectivty)
+        df_reflectivity = self.get_reflectivity_dataframe(exp_reflectivity, simulated_reflectivity)
         df_reflectivity.to_csv(fname("reflectivity"), index=False)
 
         # nk long format

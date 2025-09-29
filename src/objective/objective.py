@@ -8,6 +8,31 @@ from scipy.optimize import minimize
 from reflectivity_model import eVnm_converter
 
 def objective_inner(x, aoi, xrr, sigma_sq, E, model, pol,E_pol, return_R=False):
+    """
+    Computes the chi-squared error between simulated and experimental reflectivity
+    for a single energy-polarization combination.
+
+    This function updates the model with energy-specific fit parameters, constructs
+    the multilayer stack, simulates reflectivity using the transfer matrix method,
+    and compares it to experimental data using a weighted error model.
+
+    Args:
+        x (array-like): Fit parameters specific to this energy-polarization slice.
+        aoi (array-like): Array of angles of incidence (in radians), adjusted for offset.
+        xrr (array-like): Experimental reflectivity values.
+        sigma_sq (array-like): Error variance for each reflectivity point.
+        E (float): Energy value (e.g., in eV) for this slice.
+        model (ReflectivityModel): Instance of the reflectivity model.
+        pol (int): Polarization index (0 = p-pol, 1 = s-pol).
+        E_pol (str): Unique identifier for energy-polarization combination.
+        return_R (bool): If True, also returns the simulated reflectivity array.
+
+    Returns:
+        float or tuple:
+            - If return_R is False: returns chi-squared error (float)
+            - If return_R is True: returns (chi-squared, simulated reflectivity)
+    """
+
     # Update model keys with current fit parameters
     for i, param in enumerate([p for p in model.domain_E_init if f'_{E_pol}' in p['name']]):
         model.keys[param['name']] = x[i]
@@ -23,7 +48,36 @@ def objective_inner(x, aoi, xrr, sigma_sq, E, model, pol,E_pol, return_R=False):
     chi = np.sum(np.square(rm - xrr) / sigma_sq)
     return (chi, rm) if return_R else chi
 
-def objective_model_fit(x, model, combined_df, return_loglikelihood=False, return_all=False): 
+def objective_model_fit(x, model, exp_reflectivity, return_loglikelihood=False, return_all=False): 
+    """
+    Computes the objective function for multilayer reflectivity fitting across multiple energies.
+
+    This function supports both global and per-energy fitting strategies. It evaluates the
+    chi-squared error between simulated and experimental reflectivity data, optionally returning
+    log-likelihood or detailed outputs for analysis and visualization.
+
+    Args:
+        x (array-like): Flattened array of fit parameters. Includes global parameters and,
+            if strategy is "global", energy-dependent parameters.
+        model (ReflectivityModel): Instance of the reflectivity model containing layer definitions,
+            parameter domains, and fitting configuration.
+        exp_reflectivity (pd.DataFrame): DataFrame containing experimental reflectivity data.
+            Must include columns: 'energy_pol', 'Theta', 'R', and optionally a sigma column.
+        return_loglikelihood (bool): If True, returns the log-likelihood instead of chi-squared.
+        return_all (bool): If True, returns detailed outputs including nk arrays, simulated R,
+            experimental R, per-energy chi values, and total chi.
+
+    Returns:
+        float or tuple:
+            - If return_loglikelihood is True: returns total log-likelihood.
+            - If return_all is True: returns (nk_E, R_E, chi_E, chi_total)
+            - Otherwise: returns total chi-squared error (float)
+
+    Raises:
+        ValueError: If input parameter lengths do not match expected counts based on fit strategy.
+        ValueError: If sigma_mode is invalid or required sigma inputs are missing.
+    """
+
     # Validate input length based on fit strategy
     global_keys = [k for k, v in model.global_params.items() if v.get('fit')]
     n_global = len(global_keys)
@@ -60,7 +114,7 @@ def objective_model_fit(x, model, combined_df, return_loglikelihood=False, retur
         E = model.energy_index_map[E_pol]['energy']
         pol = model.energy_index_map[E_pol]['pol_number']  #1 = s_plo, 0 = p_pol
 
-        xrr_all = combined_df[combined_df['energy_pol'] == E_pol]
+        xrr_all = exp_reflectivity[exp_reflectivity['energy_pol'] == E_pol]
         aoi = np.deg2rad(xrr_all['Theta'].values) - np.deg2rad(model.keys['aoi_offset'])
         xrr = xrr_all['R'].values
         if model.sigma_mode == "model":
@@ -69,7 +123,7 @@ def objective_model_fit(x, model, combined_df, return_loglikelihood=False, retur
             if model.sigma_column is None:
                 raise ValueError("sigma_column must be specified when sigma_mode='column'")
             if model.sigma_column not in xrr_all.columns:
-                raise ValueError(f"Column '{model.sigma_column}' not found in combined_df")
+                raise ValueError(f"Column '{model.sigma_column}' not found in exp_reflectivity")
             sigma_sq = xrr_all[model.sigma_column].values
         elif model.sigma_mode == "function":
             if not callable(model.sigma_function):
