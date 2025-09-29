@@ -1,7 +1,7 @@
 # XRR_modeling  
 **Accessible multilayer reflectivity fitting across energies**
 
-Welcome to **XRR_modeling**, a Python toolkit for modeling and fitting reflectivity data (e.g., XRR, RSoXS) across multiple photon energies. This package provides a modular framework for defining multilayer stacks, managing global and energy-dependent parameters, and exporting results with ceremonial clarity.
+Welcome to **XRR_modeling**, a Python toolkit for modeling and fitting reflectivity data across multiple photon energies. This package provides a modular framework for defining multilayer stacks, managing global and energy-dependent parameters, and exporting results with ceremonial clarity.
 
 ---
 
@@ -120,7 +120,7 @@ The class supports both fixed values and parameter fitting, with bounds and init
 
 ## Input csv file
 
-See [`fit_input/sample1_et_up.csv`](fit_input/sample1_et_up.csv) for an example.
+See [`fit_input/sample1_et_up.csv`](fit_input/sample1_set_up.csv) for an example.
 
 ---
 
@@ -144,7 +144,7 @@ Each row represents a single layer in the stack. **Layer order matters**:
 
 - **Valid entries for `fit_thickness`, `fit_roughness`, `fit_delta`, or `fit_beta`**  
   - A single float (± around the starting value)  
-  - A pair of values in brackets `[lower_bound, upper_bound]`  
+  - A pair of values in brackets `(lower_bound, upper_bound)`  
   - Leave empty to fix the parameter during fitting
 
 ---

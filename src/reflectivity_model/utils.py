@@ -1,6 +1,7 @@
 import scipy.constants as const
 import numpy as np
 from scipy.interpolate import interp1d
+from scipy.special import erf
 import ast
 import pandas as pd
 
@@ -88,5 +89,100 @@ def validate_positive(value, field_name="value"):
         raise ValueError(f"{field_name} is missing.")
     if value <= 0:
         raise ValueError(f"{field_name} must be positive. Got {value}.")
+    
+def smooth_transition(z, z0, width, val1, val2):
+    """Smooth transition between val1 and val2 centered at z0 with roughness width."""
+    return val1 + (val2 - val1) * 0.5 * (1 + erf((z - z0) / (np.sqrt(2) * width)))
+
+def get_thick_rough(layer):
+    thickness = 0
+    roughness = 0
+    if "fit_thickness" in layer and "x0" in layer["fit_thickness"]:
+        thickness = layer["fit_thickness"]["x0"]
+    elif "fixed_thickness" in layer:
+        thickness = layer["fixed_thickness"]
+
+    if "fit_roughness" in layer and "x0" in layer["fit_roughness"]:
+        roughness = layer["fit_roughness"]["x0"]
+    elif "fixed_roughness" in layer:
+        roughness = layer["fixed_roughness"]
+    return thickness, roughness
+
+def get_nk(layer,target_energy_index=0):
+    if "fit_nk_array" in layer:
+        n = layer["fit_nk_array"]["n_array"][target_energy_index]
+        k = layer["fit_nk_array"]["k_array"][target_energy_index]
+    else:
+        n = layer["fixed_nk"]["n_array"][target_energy_index]
+        k = layer["fixed_nk"]["k_array"][target_energy_index]
+    return n, k
+    
+
+
+def build_centered_erf_profile(layers, energies, target_energy_index=0, resolution=0.1):
+    # Parameters
+    vacuum_thickness = 10
+    substrate_extension = 10
+    vacuum_n, vacuum_k = 0.0, 0.0
+
+    # Compute total stack thickness
+    stack_thickness = sum(
+        layer.get("fit_thickness", {}).get("x0", layer.get("fixed_thickness", 0))
+        for layer in layers
+    )
+    total_depth = vacuum_thickness + stack_thickness + substrate_extension
+    z_grid = np.arange(-vacuum_thickness, stack_thickness + substrate_extension, resolution)
+
+    n_profile = np.full_like(z_grid, vacuum_n, dtype=float)
+    k_profile = np.full_like(z_grid, vacuum_k, dtype=float)
+
+
+
+    z_current = 0
+    prev_n, prev_k = vacuum_n, vacuum_k
+
+    for i, layer in enumerate(layers[:-1]):
+        #print(layer)
+        #thickness = layer.get("fit_thickness").get("x0", layer.get("fixed_thickness"))
+        #roughness = layer.get("fit_roughness").get("x0", layer.get("fixed_roughness"))
+        thickness, roughness = get_thick_rough(layer)
+        n_val, k_val = get_nk(layer,target_energy_index=target_energy_index)
+
+        # Fill interior of layer
+        for j, z in enumerate(z_grid):
+            if z_current <= z < z_current + thickness:
+                n_profile[j] = n_val
+                k_profile[j] = k_val
+
+        # Apply smooth transition centered at interface
+        z_interface = z_current
+        width = roughness / 2
+        for j, z in enumerate(z_grid):
+            if z_interface - 3 * width < z < z_interface + 3 * width:
+                alpha = 0.5 * (1 + erf((z - z_interface) / (np.sqrt(2) * width)))
+                n_profile[j] = (1 - alpha) * prev_n + alpha * n_val
+                k_profile[j] = (1 - alpha) * prev_k + alpha * k_val
+
+        z_current += thickness
+        prev_n, prev_k = n_val, k_val
+
+    # Final transition to substrate extension
+    last_layer = layers[-1]
+    rough_substrate = last_layer.get("fit_roughness", {}).get("x0", last_layer.get("fixed_roughness", 0.01))
+    #print(rough_substrate)
+    sub_n, sub_k = get_nk(last_layer,target_energy_index=target_energy_index)
+    z_interface = z_current
+    width = rough_substrate / 2
+
+    for j, z in enumerate(z_grid):
+        if z_interface - 3 * width < z < z_interface + 3 * width:
+            alpha = 0.5 * (1 + erf((z - z_interface) / (np.sqrt(2) * width)))
+            n_profile[j] = (1 - alpha) * prev_n + alpha * sub_n
+            k_profile[j] = (1 - alpha) * prev_k + alpha * sub_k
+        elif z >= z_interface + 3 * width:
+            n_profile[j] = sub_n
+            k_profile[j] = sub_k
+
+    return z_grid, n_profile, k_profile
 
 
