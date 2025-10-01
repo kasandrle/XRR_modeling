@@ -48,6 +48,19 @@ def objective_inner(x, aoi, xrr, sigma_sq, E, model, pol,E_pol, return_R=False):
     chi = np.sum(np.square(rm - xrr) / sigma_sq)
     return (chi, rm) if return_R else chi
 
+def objective_inner_safe(x, *args):
+    if not np.all(np.isfinite(x)):
+        print("Non-finite x detected:", x)
+        return np.inf
+        #raise ValueError("x contains nan or inf")
+    result = objective_inner(x, *args)
+    if not np.isfinite(result):
+        print("Objective returned non-finite value for x =", x)
+        raise ValueError("Objective returned nan or inf")
+    return result
+
+
+
 def objective_model_fit(x, model, exp_reflectivity, return_loglikelihood=False, return_all=False): 
     """
     Computes the objective function for multilayer reflectivity fitting across multiple energies.
@@ -138,29 +151,32 @@ def objective_model_fit(x, model, exp_reflectivity, return_loglikelihood=False, 
             bounds = [d['domain'] for d in model.domain_E_init if f'_{E_pol}' in d['name']]
 
             res = minimize(
-                objective_inner, x0, bounds=bounds,
+                objective_inner_safe, x0, bounds=bounds,
                 args=(aoi, xrr, sigma_sq, E, model, pol, E_pol),
-                method='TNC'
+                method='L-BFGS-B'
             )
 
             # Evaluate result
             if res.success:
                 last_successful_x = res.x
             else:
-                if last_successful_x is not None:
+                if last_successful_x is not None and np.all(np.isfinite(last_successful_x)):
                     res = minimize(
-                        objective_inner, last_successful_x, bounds=bounds,
+                        objective_inner_safe, last_successful_x, bounds=bounds,
                         args=(aoi, xrr, sigma_sq, E, model, pol, E_pol),
-                        method='TNC'
+                        method='L-BFGS-B'
                     )
                     if res.success:
                         last_successful_x = res.x
                 else:
                     x_random = [np.random.uniform(low, high) for (low, high) in bounds]
+                    if not np.all(np.isfinite(x_random)):
+                        print("Non-finite x_random detected:", x_random)
+                        raise ValueError("x_random contains nan or inf")
                     res = minimize(
-                        objective_inner, x_random, bounds=bounds,
+                        objective_inner_safe, x_random, bounds=bounds,
                         args=(aoi, xrr, sigma_sq, E, model, pol, E_pol),
-                        method='TNC'
+                        method='L-BFGS-B'
                     )
                     if res.success:
                         last_successful_x = res.x
