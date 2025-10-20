@@ -53,21 +53,36 @@ def extract_nk_arrays(nk_E, energy_pol_uni, fitted_nk_layers):
 
     return nk_dict
 
-def load_nk_from_file(filepath,energy_pol_uni):
+def load_nk_from_file(filepath, energy_pol_uni):
+    # Extract energy values from labels
     energy_uni = []
     for label in energy_pol_uni:
         energy_str, pol = label.split('_')
         energy = float(energy_str)
         energy_uni.append(energy)
+    energy_uni = np.array(energy_uni)
+
+    # Load data
     df = pd.read_csv(filepath)
+    df.replace(r'^\s*$', np.nan, regex=True, inplace=True)
+    df = df.dropna(how='any')  # or 'all'
+
     e_arr = np.array(df['Energy'])
     n_arr = np.array(df['delta'])
     k_arr = np.array(df['beta'])
-    n_interp = interp1d(e_arr, n_arr, fill_value="extrapolate")
-    k_interp = interp1d(e_arr, k_arr, fill_value="extrapolate")
 
-    n_array_extended = n_interp(energy_uni)
-    k_array_extended = k_interp(energy_uni)
+    # Interpolate only if energy arrays differ
+    if not np.array_equal(np.sort(e_arr), np.sort(energy_uni)):
+        n_interp = interp1d(e_arr, n_arr, fill_value="extrapolate")
+        k_interp = interp1d(e_arr, k_arr, fill_value="extrapolate")
+        n_array_extended = n_interp(energy_uni)
+        k_array_extended = k_interp(energy_uni)
+    else:
+        # Match energy values directly
+        idx = np.argsort(e_arr)
+        n_array_extended = n_arr[idx]
+        k_array_extended = k_arr[idx]
+
     return n_array_extended, k_array_extended
 
 def normalize_polarization(pol_entry):
