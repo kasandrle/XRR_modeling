@@ -221,3 +221,38 @@ def objective_model_fit(x, model, exp_reflectivity, return_loglikelihood=False, 
         return np.asarray(nk_E), R_E, chi_E, chi_total
 
     return chi_total
+
+def simulate_reflectivity(model, aoi_input):
+    """
+    Simulate reflectivity R_E for given AOI(s) across multiple energies/polarizations.
+
+    Args:
+        model (ReflectivityModel): Reflectivity model instance.
+        aoi_input (array-like): Angles of incidence in degrees (will be converted to radians).
+
+    Returns:
+        list or tuple:
+            -  R_E only
+    """
+
+    # --- Prepare outputs ---
+    R_E = []
+
+    # --- Convert AOI to radians and apply offset ---
+    aoi = np.deg2rad(aoi_input) - np.deg2rad(model.keys.get('aoi_offset', 0.0))
+
+    # --- Loop over energies/polarizations ---
+    for E_pol in model.energy_pol_uni:
+        E = model.energy_index_map[E_pol]['energy']
+        pol = model.energy_index_map[E_pol]['pol_number']
+
+        wl = eVnm_converter(E)
+        layer, rough, n_stack = model.build_layer_arrays(E_pol)
+        rm, _ = mm.reflec_and_trans(n_stack, wl, aoi, layer, rough, pol=pol)
+        rm = np.square(np.abs(np.asarray(rm)))
+
+        R_E.append(rm)
+
+
+
+    return R_E
