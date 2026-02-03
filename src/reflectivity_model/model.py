@@ -345,6 +345,20 @@ class ReflectivityModel:
             aoi_deg = xrr_all['Theta'].values
             xrr = xrr_all['R'].values
             rm = simulated_reflectivity[e_idx]
+            if self.sigma_mode == "model":
+                sigma_sq = np.square(self.keys['a'] * xrr) + np.square(self.keys['b'])
+            elif self.sigma_mode == "column":
+                if self.sigma_column is None:
+                    raise ValueError("sigma_column must be specified when sigma_mode='column'")
+                if self.sigma_column not in xrr_all.columns:
+                    raise ValueError(f"Column '{self.sigma_column}' not found in exp_reflectivity")
+                sigma_sq = xrr_all[self.sigma_column].values
+            elif self.sigma_mode == "function":
+                if not callable(self.sigma_function):
+                    raise ValueError("sigma_function must be a callable when sigma_mode='function'")
+                sigma_sq = self.sigma_function(xrr_all['R'].values, self)
+            else:
+                raise ValueError(f"Unknown sigma_mode: {self.sigma_mode}")
             for i, theta in enumerate(aoi_deg):
                 records.append({
                     'energy': E,
@@ -352,7 +366,8 @@ class ReflectivityModel:
                     'aoi': theta,
                     'R_sim': rm[i],
                     'R_exp': xrr[i],
-                    'residual': rm[i] - xrr[i]
+                    'sigma_sq': sigma_sq[i],
+                    'R_sim-R_exp': rm[i] - xrr[i]
                 })
         df = pd.DataFrame(records)
         if save_path:
