@@ -300,17 +300,11 @@ class ReflectivityModel:
 
     def extract_fit_parameters(self, x, nk_E):
         """
-        Extracts fitted global parameters and energy-dependent optical constants (n, k)
+        Extract fitted global parameters and energy-dependent optical constants (n, k)
         for layers marked as fit-enabled. Returns a combined dictionary suitable for
         serialization or reinitialization.
-
-        Args:
-            x (array of floats): results array of optimzation.
-            nk_E (dict): Dictionary of energy-resolved optical constants.
-
-        Returns:
-            dict: Combined dictionary of fitted global parameters and fitted nk arrays.
         """
+
         # Identify layers with fitted n or k
         fitted_nk_layers = [
             layer.name
@@ -321,11 +315,15 @@ class ReflectivityModel:
             )
         ]
 
-        # Extract fitted global parameters
-        global_keys = list(self.global_params.keys())
+        # Extract only fitted global parameters
+        fitted_global_names = [
+            name for name, cfg in self.global_params.items()
+            if cfg.get('fit', False)
+        ]
+
         fitted_globals = {
             name: value
-            for name, value in zip(global_keys, x[:len(global_keys)])
+            for name, value in zip(fitted_global_names, x[:len(fitted_global_names)])
         }
 
         # Extract fitted nk arrays
