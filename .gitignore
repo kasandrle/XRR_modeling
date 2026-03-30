@@ -6,6 +6,7 @@
 fit_outputs/
 save_models/
 private_notebooks/
+MCMC/
 .venv/
 build/
 

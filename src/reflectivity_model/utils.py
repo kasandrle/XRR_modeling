@@ -200,4 +200,107 @@ def build_centered_erf_profile(layers, energies, target_energy_index=0, resoluti
 
     return z_grid, n_profile, k_profile
 
+def get_thickness(layer):
+    if "fit_thickness" in layer and "x0" in layer["fit_thickness"]:
+        return layer["fit_thickness"]["x0"]
+    return layer.get("fixed_thickness", 0.0)
 
+def get_roughness(layer):
+    if "fit_roughness" in layer and "x0" in layer["fit_roughness"]:
+        return layer["fit_roughness"]["x0"]
+    return layer.get("fixed_roughness", 0.0)
+
+def build_optical_profile(layers, target_energy_index=0,
+                          offset_substrate=10, offset_vacuum=10,
+                          resolution=0.01):
+    """
+    Combines thickness, roughness, and nk extraction with ERF smoothing.
+    Returns z, n(z), k(z).
+    """
+
+    # -----------------------------
+    # 1. Build thickness, roughness, n, k arrays
+    # -----------------------------
+    thickness = [-offset_substrate]
+    roughness = []
+    n_vals = []
+    k_vals = []
+
+    # Reverse layer order: substrate → top
+    for i, layer in enumerate(layers[::-1]):
+        thick = get_thickness(layer)
+        rough = get_roughness(layer)
+        n, k = get_nk(layer, target_energy_index)
+
+        # Add substrate offset to first layer
+        if i == 0:
+            thick += offset_substrate
+
+        thickness.append(thickness[-1] + thick)
+        roughness.append(rough)
+        n_vals.append(n)
+        k_vals.append(k)
+
+    # Add vacuum region
+    thickness.append(thickness[-1] + offset_vacuum)
+    n_vals.append(0.0)
+    k_vals.append(0.0)
+
+    # -----------------------------
+    # 2. Build z-grid
+    # -----------------------------
+    z_min = thickness[0]
+    z_max = thickness[-1]
+    z = np.arange(z_min, z_max, resolution)
+
+    # Initialize profiles
+    n_profile = np.zeros_like(z)
+    k_profile = np.zeros_like(z)
+
+    # -----------------------------
+    # 3. Fill interior + smooth transitions
+    # -----------------------------
+    for i in range(len(n_vals) - 1):
+        z1 = thickness[i]
+        z2 = thickness[i+1]
+        z3 = thickness[i+2]  # next interface
+
+        v1_n = n_vals[i]
+        v2_n = n_vals[i+1]
+        v1_k = k_vals[i]
+        v2_k = k_vals[i+1]
+
+        sigma = roughness[i] if i < len(roughness) else 0.0
+
+        # Limit smoothing width
+        layer_thick = z2 - z1
+        max_width = layer_thick / 6
+        width = min(sigma / 2, max_width)
+
+        # Interior region
+        mask = (z >= z1) & (z < z2)
+        n_profile[mask] = v1_n
+        k_profile[mask] = v1_k
+
+        # Smooth transition
+        if width > 0:
+            trans_start = z2 - 3*width
+            trans_end   = z2 + 3*width
+
+            # Clip to next interface
+            if trans_end > z3:
+                trans_end = z3
+                trans_start = z3 - 6*width
+                z2_shifted = z3 - 3*width
+            else:
+                z2_shifted = z2
+
+            mask_trans = (z >= trans_start) & (z <= trans_end)
+
+            alpha = 0.5 * (1 + erf((z[mask_trans] - z2_shifted) /
+                                   (np.sqrt(2)*width)))
+
+            n_profile[mask_trans] = (1 - alpha) * v1_n + alpha * v2_n
+            k_profile[mask_trans] = (1 - alpha) * v1_k + alpha * v2_k
+
+    return z, n_profile, k_profile

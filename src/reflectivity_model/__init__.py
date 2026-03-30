@@ -1,6 +1,6 @@
 from .layer_spec import LayerSpec
 from .model import ReflectivityModel
-from .utils import eVnm_converter,extract_nk_arrays,load_nk_from_file, normalize_polarization
+from .utils import eVnm_converter,extract_nk_arrays,load_nk_from_file, normalize_polarization, build_optical_profile
 
 
 __all__ = ['LayerSpec', 
@@ -8,5 +8,6 @@ __all__ = ['LayerSpec',
            'eVnm_converter',
            'extract_nk_arrays',
            'load_nk_from_file',
-           'normalize_polarization'
+           'normalize_polarization',
+           'build_optical_profile'
            ]
